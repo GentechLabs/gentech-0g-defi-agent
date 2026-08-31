@@ -1,0 +1,57 @@
+version: "1"
+kind: subnet
+id: 0
+slug: gentech-token-security
+protocol: generic
+name: GenTech Token Security
+description: >
+  Token risk scoring and rugcheck analysis. Scans a token/contract address for
+  honeypots, low-liquidity rug pulls, homoglyph scams, and sketchy contracts.
+  Backed by GenTech's x402 gateway (api.gentechlabs.net) — 11 live paid services
+  across 7 chains, paid per-call in USDC. This miner wraps the token_security
+  service: a real, production, pay-per-call API.
+base_url: https://api.gentechlabs.net
+
+auth:
+  type: none
+
+endpoints:
+  - path: /v1/security/score/{address}
+    external_path: /v1/security/score/{address}
+    method: GET
+    description: >
+      Token risk scoring and rugcheck analysis for a given token/contract
+      address. Returns a 0-100 risk score with a low/medium/high/critical
+      risk level, an 11-factor boolean risk breakdown, and liquidity/holder
+      metadata.
+
+semantics:
+  signal_mapping:
+    type: task_completion        # canonical enum value (was non-canonical token_risk)
+    label_field: level           # actual response field: low|medium|high|critical
+    confidence_field: score      # actual response field: 0-100 risk score
+  supported_intents:             # canonical intent strings (were non-canonical)
+    - task_completion
+
+on_chain:
+  description: Token risk assessment for on-chain signal data.
+  transform: direct
+  min_price_usdc: 0.01
+  fields:
+    integers:
+      - index: 0
+        name: score_x100
+        description: Token risk score (0-100) times 100.
+        source_path: score
+        multiplier: 100
+    strings:
+      - index: 0
+        name: level
+        description: Risk level (low, medium, high, critical).
+        source_path: level
+    bools:
+      - index: 0
+        name: is_high_risk
+        description: Whether the token is flagged as high or critical risk.
+        source_path: level
+        transform_rule: bool_from_eq:critical
